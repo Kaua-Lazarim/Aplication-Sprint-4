@@ -5,7 +5,6 @@
 
 ## Vídeo de demonstração
 
-▶️ **YouTube (não listado, até 5 min):** `<COLE AQUI O LINK DO VÍDEO NO YOUTUBE>`
 
 ## Integrantes
 
@@ -15,7 +14,7 @@
 
 ## Repositório
 
-🔗 `<COLE AQUI O LINK DO REPOSITÓRIO NO GITHUB>`
+🔗 https://github.com/Kaua-Lazarim/Aplication-Sprint-4/
 
 ---
 
