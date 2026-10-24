@@ -1,88 +1,165 @@
-# Motiva — Sprint 3: App Persistente
+# Motiva — Gestão de Ocorrências de Vegetação em Rodovias
 
-App de apoio a gestores e supervisores de rodovia para acompanhar o
-crescimento de vegetação nos entornos da pista e registrar ocorrências,
-com classificação de risco (baixo, médio, alto), facilitando a gestão
-das equipes de manutenção.
+> Entrega final do Challenge (Sprint 4 — Documentação e Demonstração).
+> O código da Sprint 3 é a versão final do app; esta sprint documenta e demonstra o que já existe.
 
-O conceito de produto (Motiva) foi definido em grupo nas Sprints
-anteriores. Esta entrega — o app persistente da Sprint 3 — foi
-implementada individualmente.
+## Vídeo de demonstração
 
-## Integrante responsável por esta entrega
+▶️ **YouTube (não listado, até 5 min):** `<COLE AQUI O LINK DO VÍDEO NO YOUTUBE>`
+
+## Integrantes
 
 | Nome | RM |
 |---|---|
 | Kauã Lazarim | 564625 |
 
-Repositório: `<link do GitHub aqui>`
+## Repositório
 
-## Como rodar
+🔗 `<COLE AQUI O LINK DO REPOSITÓRIO NO GITHUB>`
+
+---
+
+## 1. O problema, o usuário e a ação principal
+
+**Problema.** Nas rodovias, o crescimento de vegetação nos entornos da pista (acostamento, canteiro central, placas de sinalização) precisa ser acompanhado e tratado pelas equipes de manutenção. Sem um registro organizado, fica difícil saber *onde* está o problema, *o que* foi observado e *quão grave* ele é para priorizar o trabalho das equipes.
+
+**Usuário.** Gestores e supervisores de rodovia, que precisam acompanhar o estado da vegetação ao longo dos trechos e orientar as equipes de manutenção.
+
+**Ação principal.** Registrar uma ocorrência de vegetação (trecho, local, descrição e nível de risco) e consultá-la depois em uma lista priorizável visualmente pela classificação de risco, com os dados guardados no próprio aparelho.
+
+O conceito de produto da Motiva foi definido em grupo nas sprints anteriores. O app persistente (Sprint 3) e esta documentação foram implementados individualmente.
+
+## 2. Stack
+
+| Tecnologia | Versão | Uso |
+|---|---|---|
+| React Native | 0.74.5 | Interface mobile |
+| Expo (SDK 51) | ~51.0.0 | Toolchain e execução (`expo start`) |
+| TypeScript | ~5.3.3 (`strict: true`) | Tipagem de todo o código |
+| AsyncStorage (`@react-native-async-storage/async-storage`) | 1.23.1 | Persistência local |
+| React | 18.2.0 | Estado e ciclo de vida (`useState`, `useEffect`) |
+
+A navegação entre telas é feita por estado (`useState`) em `App.tsx`, sem biblioteca de rotas.
+
+## 3. Estrutura de pastas
+
+```
+motiva/
+├── App.tsx                          # Raiz: estado global, navegação por useState, carga inicial
+├── index.ts                         # registerRootComponent(App)
+├── app.json                         # Configuração do Expo
+├── package.json
+├── tsconfig.json
+└── src/
+    ├── types/
+    │   └── Ocorrencia.ts            # Tipos Ocorrencia e NivelRisco
+    ├── data/
+    │   └── mock.ts                  # 3 ocorrências de exemplo (semente da 1ª execução)
+    ├── services/
+    │   └── ocorrenciasService.ts    # Único ponto que acessa o AsyncStorage
+    ├── components/
+    │   └── OcorrenciaCard.tsx       # Card da lista, com selo de risco
+    └── screens/
+        ├── Lista.tsx                # Lista de ocorrências
+        ├── Cadastro.tsx             # Formulário de nova ocorrência
+        └── Detalhe.tsx              # Detalhe de uma ocorrência
+```
+
+As telas **nunca** importam o `AsyncStorage` diretamente: toda leitura e escrita passa pelo `ocorrenciasService`.
+
+## 4. O tipo `Ocorrencia` e onde é usado
+
+Definido em `src/types/Ocorrencia.ts`:
+
+```typescript
+export type NivelRisco = "baixo" | "medio" | "alto";
+
+export type Ocorrencia = {
+  id: number;
+  descricao: string;
+  local: string;
+  trecho: string;
+  risco: NivelRisco;
+  data: string;
+};
+```
+
+| Campo | Significado |
+|---|---|
+| `id` | Identificador único (gerado com `Date.now()` no cadastro) |
+| `descricao` | O que foi observado em campo |
+| `local` | Posição no trecho (ex.: "Km 42 - sentido interior") |
+| `trecho` | Nome da rodovia (ex.: "Rodovia dos Bandeirantes") |
+| `risco` | Classificação: `"baixo"`, `"medio"` ou `"alto"` |
+| `data` | Data/hora do registro, em ISO 8601 (gerada no cadastro) |
+
+**Onde é usado:**
+
+| Arquivo | Uso do tipo |
+|---|---|
+| `src/data/mock.ts` | Tipa o array `ocorrenciasIniciais` |
+| `src/services/ocorrenciasService.ts` | Retorno de `obterOcorrencias`; `salvarOcorrencia` recebe `Omit<Ocorrencia, "id" \| "data">` e devolve a lista atualizada |
+| `App.tsx` | Estado `ocorrencias` e a tela de detalhe (`ocorrencia` selecionada) |
+| `src/screens/Lista.tsx` | Props `ocorrencias` e `onAbrirDetalhe` |
+| `src/screens/Cadastro.tsx` | Monta o objeto (sem `id` e `data`) enviado em `onSalvar`; o tipo de `risco` define as 3 opções do seletor |
+| `src/screens/Detalhe.tsx` | Prop `ocorrencia` exibida na tela |
+| `src/components/OcorrenciaCard.tsx` | Prop `ocorrencia` e mapas de cor/rótulo por `risco` |
+
+## 5. Como os dados são persistidos
+
+- Todas as ocorrências ficam no **AsyncStorage**, na chave `@motiva:ocorrencias`, como um array serializado em JSON.
+- **Primeira execução:** se a chave ainda não existe, o `ocorrenciasService` grava no storage as 3 ocorrências de `src/data/mock.ts`. A partir daí o mock não é mais consultado; o storage é a única fonte de dados.
+- **Cadastro:** `salvarOcorrencia` lê o que já está persistido, adiciona o novo registro **no topo** (com `id` e `data` gerados naquele momento) e regrava o array inteiro.
+- **Abertura do app:** o `App.tsx` chama `obterOcorrencias()` em um `useEffect` ao montar. Por isso os dados voltam depois de fechar e reabrir o app ou de recarregar o bundle.
+- O estado em memória (`useState` em `App.tsx`) serve só para renderizar; ele é sempre preenchido com o retorno do service, nunca é a origem dos dados.
+- Se a leitura do storage falhar, o service registra um aviso no console e a lista aparece vazia, sem fechar o app.
+
+## 6. Como rodar
+
+**Pré-requisitos:** Node.js 18 ou superior e um destino para abrir o app: celular com Expo Go ou emulador/simulador.
 
 ```bash
 npm install
 npx expo start
 ```
 
-Escaneie o QR code exibido no terminal com o app Expo Go (Android/iOS)
-ou rode em um emulador a partir do menu do Expo.
+Com o servidor aberto no terminal:
 
-## Estrutura do projeto
+- **Celular Android:** instale o Expo Go e escaneie o QR code.
+- **Emulador Android / Simulador iOS:** pressione `a` (Android) ou `i` (iOS, somente macOS) no terminal.
+- Pressione `r` para recarregar o app.
 
-```
-src/
-  screens/      # Lista, Cadastro e Detalhe
-  components/   # OcorrenciaCard (reutilizável)
-  types/        # Ocorrencia
-  data/         # mock.ts — semente inicial, não é fonte após o cadastro
-  services/     # ocorrenciasService.ts — única parte que fala com o AsyncStorage
-```
+> **Atenção à versão do Expo Go.** O projeto usa o **Expo SDK 51**, e cada versão do Expo Go suporta uma única SDK. Se aparecer a mensagem de incompatibilidade de versão:
+> - **Android (celular ou emulador) e iOS Simulator:** baixe o Expo Go da SDK 51 em <https://expo.dev/go> (escolha SDK 51 e a plataforma) e rode `npx expo start` novamente.
+> - **iPhone/iPad físico:** a App Store não oferece Expo Go de SDK 51. Use um Android ou um simulador.
+>
+> Referência: [Expo Go version mismatch](https://docs.expo.dev/troubleshooting/expo-go-version-mismatch/).
 
-As telas nunca importam `AsyncStorage` diretamente; toda leitura e
-escrita passa pelo `ocorrenciasService`.
+## 7. Comportamento esperado
 
-## Modelagem
+Passo a passo para validar o app do zero:
 
-```typescript
-export type Ocorrencia = {
-  id: number;
-  descricao: string;
-  local: string;
-  trecho: string;
-  risco: "baixo" | "medio" | "alto";
-  data: string;
-};
-```
+1. **Abrir o app.** A Lista aparece com o título "Motiva", o subtítulo "Ocorrências de vegetação na via" e, na primeira execução, as 3 ocorrências de exemplo (uma de cada nível de risco).
+2. **Criar uma ocorrência.** Toque em **+ Nova**, preencha **Trecho**, **Local** e **Descrição**, escolha o **Risco** (`baixo`, `medio` ou `alto`; o padrão é `baixo`) e toque em **Salvar**. Se algum dos três campos de texto estiver vazio, o app mostra o alerta "Campos obrigatórios" e não salva. **Cancelar** volta à lista sem salvar.
+3. **Ver na lista.** Ao salvar, o app volta à Lista e a nova ocorrência aparece **no topo**, imediatamente, sem reiniciar.
+4. **Abrir o detalhe.** Toque em um card para ver selo de risco, trecho, local, descrição e a data/hora do registro. **< Voltar** retorna à lista.
+5. **Fechar e reabrir o app** (ou recarregar com `r`). A lista volta exatamente como estava, incluindo a ocorrência criada no passo 2.
 
-O campo `trecho` (nome da rodovia) foi adicionado ao domínio da Motiva,
-além dos campos obrigatórios do enunciado, e é usado de verdade nas
-três telas.
+Se não houver nenhuma ocorrência, a Lista mostra "Nenhuma ocorrência registrada ainda."; enquanto os dados carregam, mostra um indicador de carregamento.
 
-## Como os dados são persistidos
+## 8. Classificação de risco (lista e detalhe)
 
-- Toda ocorrência é salva no `AsyncStorage` sob a chave
-  `@motiva:ocorrencias`, como um array serializado em JSON.
-- Na primeira execução do app (chave ainda inexistente), o
-  `ocorrenciasService` semeia o storage com os dados de
-  `src/data/mock.ts` e já persiste esse conteúdo. A partir daí, o mock
-  não é mais consultado — o storage é a única fonte.
-- Ao cadastrar uma ocorrência, `salvarOcorrencia` lê o que já está
-  persistido, adiciona o novo registro (com `id` e `data` gerados no
-  momento do cadastro) e regrava o array inteiro no `AsyncStorage`.
-- O `App.tsx` mantém uma cópia em memória (`useState`) apenas para
-  renderizar a lista rapidamente; essa cópia é sempre atualizada com o
-  retorno do service, nunca é a origem dos dados.
+O nível de risco é escolhido pelo usuário no cadastro e aparece como um **selo colorido** nos dois lugares:
 
-## Fluxo do app
+| Risco | Cor do selo | Na lista (card) | No detalhe |
+|---|---|---|---|
+| Baixo | Verde `#22C55E` | Selo no canto superior do card | Selo acima do nome do trecho |
+| Médio | Âmbar `#F59E0B` | Selo no canto superior do card | Selo acima do nome do trecho |
+| Alto | Vermelho `#EF4444` | Selo no canto superior do card | Selo acima do nome do trecho |
 
-1. **Criar**: na Lista, toque em "+ Nova" → preencha trecho, local,
-   descrição e risco → "Salvar". O app chama
-   `ocorrenciasService.salvarOcorrencia`, que grava no AsyncStorage.
-2. **Listar**: ao voltar do cadastro, a Lista mostra a nova ocorrência
-   imediatamente, sem reiniciar o app — o `App.tsx` atualiza o estado
-   com o retorno do service.
-3. **Ver detalhe**: toque em qualquer card para abrir a tela de
-   Detalhe, com trecho, local, descrição, selo de risco e data.
-4. **Reabrir o app**: ao fechar e abrir novamente, o `App.tsx` chama
-   `ocorrenciasService.obterOcorrencias()` no `useEffect` inicial, e a
-   Lista aparece exatamente como estava antes de fechar.
+As cores e rótulos vêm de mapas indexados pelo tipo `NivelRisco`, então um nível novo no tipo exige a cor correspondente em tempo de compilação.
+
+## 9. Observações
+
+- Os dados ficam **somente no aparelho** (AsyncStorage); não há backend nem sincronização entre dispositivos.
+- Para repetir a demonstração do zero, limpe os dados do Expo Go ou reinstale-o. A função `limparOcorrencias` existe no service, mas não está ligada a nenhum botão do app.
